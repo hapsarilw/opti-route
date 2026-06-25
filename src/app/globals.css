@@ -1,26 +1,178 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────────────────
+   OptiRoute design tokens — "Verdant Dark" control-room palette.
+   Values extracted from doc/prototype-request/.../OptiRoute Design System.dc.html
+   Dark is the default; light is applied at runtime via <html data-theme="light">.
+   ───────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* surfaces */
+  --surface-0: #0b1410; /* app background / canvas */
+  --surface-1: #13201a; /* card, panel */
+  --surface-2: #1c2d24; /* elevated, dropdown, modal */
+  --surface-3: #243529; /* hover, selected row */
+  --sidebar: #111820; /* sidebar + topbar chrome */
+
+  /* borders */
+  --border: #1e3028;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+
+  /* text */
+  --text-primary: #f0ede6;
+  --text-secondary: #8fa39a;
+  --text-muted: #4a6155;
+
+  /* brand accent */
+  --accent: #1e8a63;
+  --accent-hover: #176b4d;
+  --accent-bright: #3fbf8e;
+
+  /* map-only accent: active AI route + selected vehicle (Live Map prototype) */
+  --route: #22d3ee;
+
+  /* translucent glass panel fill (floating map panels) */
+  --glass: rgba(10, 18, 14, 0.95);
+}
+
+:root[data-theme="light"] {
+  --surface-0: #f4f0e8;
+  --surface-1: #ffffff;
+  --surface-2: #ede7db;
+  --surface-3: #e5ddd0;
+  --sidebar: #ffffff;
+
+  --border: #ddd5c8;
+  --border-subtle: #ede7db;
+
+  --text-primary: #23201b;
+  --text-secondary: #6f665a;
+  --text-muted: #a99f8e;
+
+  --glass: rgba(255, 255, 255, 0.95);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* surfaces */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-sidebar: var(--sidebar);
+
+  /* borders */
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+
+  /* text */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  /* accent */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-bright: var(--accent-bright);
+  --color-route: var(--route);
+  --color-glass: var(--glass);
+
+  /* semantic (constant across themes) */
+  --color-success: #22c55e;
+  --color-warning: #d98a2b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* fonts — provided by next/font in layout.tsx */
+  --font-sans: var(--font-hanken), system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  /* type scale (extracted from Design System §03) — name → size / line-height */
+  --text-display-xl: 30px;
+  --text-display-xl--line-height: 1.1;
+  --text-display: 22px;
+  --text-display--line-height: 1.15;
+  --text-section: 19px;
+  --text-section--line-height: 1.2;
+  --text-card: 14px;
+  --text-card--line-height: 1.3;
+  --text-label: 10px;
+  --text-label--line-height: 1.4;
+
+  /* radii (4px grid family used by cards / inputs / chips) */
+  --radius-chip: 6px;
+  --radius-input: 9px;
+  --radius-card: 14px;
+  --radius-panel: 18px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Animations (extracted from the prototypes) ──────────────────────────── */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@utility animate-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@utility animate-fade-up {
+  animation: fade-up 0.22s ease-out;
+}
+@utility animate-flash {
+  animation: flash 1.6s ease-in-out infinite;
+}
+@utility glass-panel {
+  background: var(--glass);
+  backdrop-filter: blur(12px);
 }
