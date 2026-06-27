@@ -1,5 +1,6 @@
-import type { Coordinate, Priority } from './enums';
+import type { Coordinate, FleetStatus, Priority } from './enums';
 import type { Manifest } from './manifest';
+import type { Fleet } from './fleet';
 
 /**
  * API request/response contracts — Doc 01 §5 (mock endpoints served by MSW).
@@ -17,6 +18,17 @@ export interface ManifestQuery {
 
 export interface ManifestListResponse {
   data: Manifest[];
+  total: number;
+}
+
+/** GET /api/v1/fleet — fleet roster used by the optimize drawer (IDLE) & dispatch. */
+export interface FleetQuery {
+  status?: FleetStatus;
+  limit?: number;
+}
+
+export interface FleetListResponse {
+  data: Fleet[];
   total: number;
 }
 

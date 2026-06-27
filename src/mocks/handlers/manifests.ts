@@ -2,8 +2,9 @@ import { http, HttpResponse } from 'msw';
 import type { Manifest, ManifestListResponse, Priority } from '@/types';
 import { MANIFESTS } from '../data';
 
-/** Page size for cursor pagination (cursor = row offset). */
-const PAGE_SIZE = 100;
+/** Default page size. Pass ?limit=N (max 10 000) to override (used by the grid). */
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 10_000;
 
 /** Lowercased fuzzy match against the fields a dispatcher would search. */
 function matchesQuery(m: Manifest, q: string): boolean {
@@ -39,6 +40,7 @@ export const manifestsHandler = http.get('/api/v1/manifests', ({ request }) => {
   const status = url.searchParams.get('status');
   const sort = url.searchParams.get('sort');
   const cursor = Number(url.searchParams.get('cursor') ?? 0) || 0;
+  const limit = Math.min(Number(url.searchParams.get('limit') ?? DEFAULT_LIMIT) || DEFAULT_LIMIT, MAX_LIMIT);
 
   let rows = MANIFESTS;
 
@@ -54,7 +56,7 @@ export const manifestsHandler = http.get('/api/v1/manifests', ({ request }) => {
   }
 
   const total = rows.length;
-  const data = rows.slice(cursor, cursor + PAGE_SIZE);
+  const data = rows.slice(cursor, cursor + limit);
 
   const body: ManifestListResponse = { data, total };
   return HttpResponse.json(body);

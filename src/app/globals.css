@@ -155,6 +155,14 @@
     opacity: 0.4;
   }
 }
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
 
 @utility animate-shimmer {
   background-image: linear-gradient(
@@ -171,6 +179,9 @@
 }
 @utility animate-flash {
   animation: flash 1.6s ease-in-out infinite;
+}
+@utility animate-slide-in-right {
+  animation: slide-in-right 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 @utility glass-panel {
   background: var(--glass);

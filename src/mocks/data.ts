@@ -4,6 +4,7 @@ import type {
   DriverStatus,
   Fleet,
   Manifest,
+  ManifestStatus,
   Priority,
   User,
   VehicleType,
@@ -155,6 +156,21 @@ function pickPriority(): Priority {
   return 'LOW'; // ~20%
 }
 
+// Realistic lifecycle distribution for demo diversity (not all QUEUED).
+// In production all manifests would start QUEUED; here we seed historical data.
+function pickStatus(): ManifestStatus {
+  const r = rng();
+  if (r < 0.40) return 'QUEUED';
+  if (r < 0.62) return 'IN_TRANSIT';
+  if (r < 0.80) return 'DELIVERED';
+  if (r < 0.88) return 'DISPATCHED';
+  if (r < 0.93) return 'ASSIGNED';
+  if (r < 0.96) return 'OPTIMIZED';
+  if (r < 0.98) return 'EXCEPTION';
+  if (r < 0.995) return 'OPTIMIZING';
+  return 'SELECTED';
+}
+
 function recipientName(): string {
   return `${pick(BIZ_PREFIX)} ${pick(BIZ_CORE)}${pick(BIZ_SUFFIX)}`;
 }
@@ -177,7 +193,7 @@ function generateManifests(): Manifest[] {
       destination: coordNear(WAREHOUSE_ORIGIN, 30),
       priority: pickPriority(),
       weight_kg: int(50, 5000),
-      status: 'QUEUED', // all manifests start QUEUED (Doc 01 §3)
+      status: pickStatus(), // mixed for demo; real flow starts QUEUED (Doc 01 §3)
       created_at: isoWithinLastDays(7),
       assigned_fleet_id: null,
       assigned_driver_id: null,

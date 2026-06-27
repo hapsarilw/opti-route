@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { Toaster } from '@/components/ui/Toaster';
 
 /** Persistent control-room frame: fixed sidebar + top bar, scrollable content. */
 export function AppShell({ children }: { children: ReactNode }) {
@@ -11,6 +12,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <TopBar />
         <main className="flex-1 overflow-y-auto bg-surface-0">{children}</main>
       </div>
+      <Toaster />
     </div>
   );
 }

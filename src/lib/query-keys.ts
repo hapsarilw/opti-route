@@ -12,6 +12,7 @@ export const queryKeys = {
   },
   fleet: {
     all: ['fleet'] as const,
+    idle: ['fleet', 'idle'] as const,
   },
   drivers: {
     all: ['drivers'] as const,

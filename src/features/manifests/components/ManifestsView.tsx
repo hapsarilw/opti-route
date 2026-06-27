@@ -1,153 +1,173 @@
-import { ChevronDown, Filter, Zap } from 'lucide-react';
+'use client';
+
+import { useState, useMemo } from 'react';
+import { Zap } from 'lucide-react';
+import type { SortingState } from '@tanstack/react-table';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { StatusBadge } from '@/components/shared/StatusBadge';
-import { PriorityChip } from '@/components/shared/PriorityChip';
-import { Button } from '@/components/ui/Button';
-import { Checkbox } from '@/components/ui/Checkbox';
-import { SearchField } from '@/components/ui/SearchField';
-import { formatWeight } from '@/lib/format';
+import { useSelectionStore } from '@/stores/selection-store';
+import type { ManifestStatus, Priority } from '@/types';
+import { STATUS_CONFIG } from '@/config/status';
 import { cn } from '@/lib/utils';
-import { PRESELECTED_IDS, SAMPLE_MANIFESTS } from '../sample-data';
+import { OptimizeDrawer } from '@/features/optimize';
+import { useManifests } from '../hooks/useManifests';
+import { FilterToolbar, type FilterState } from './FilterToolbar';
+import { ManifestDataGrid } from './ManifestDataGrid';
 
-const COLUMNS = ['MNF-ID', 'Recipient', 'Region', 'Priority', 'Weight (kg)', 'Status'];
-const selectedCount = PRESELECTED_IDS.length;
+// ── Summary stat cards ────────────────────────────────────────────────────
+const SUMMARY_STATUSES: { status: ManifestStatus; label: string }[] = [
+  { status: 'IN_TRANSIT', label: 'In Transit' },
+  { status: 'DELIVERED', label: 'Delivered' },
+  { status: 'DISPATCHED', label: 'Dispatched' },
+  { status: 'EXCEPTION', label: 'Exception' },
+];
 
-/**
- * Process 1 — Manifests grid (static wireframe, pixel-faithful to
- * "Manifests Screen.dc.html" state 01). Hardcoded data; virtualization +
- * real filtering arrive in Phase 1.
- */
-export function ManifestsView() {
+function StatCard({ label, count, color }: { label: string; count: number; color: string }) {
   return (
-    <div className="flex flex-col gap-4 p-5 animate-fade-up">
+    <div className="flex min-w-32.5 flex-1 items-center gap-3 rounded-[13px] border border-border bg-surface-1 px-4 py-3">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+      <div className="min-w-0">
+        <div className="font-mono text-[10px] uppercase tracking-wide text-text-muted">{label}</div>
+        <div className="mt-0.5 font-display text-[18px] font-bold leading-none text-text-primary">
+          {count.toLocaleString('en-US')}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── View ──────────────────────────────────────────────────────────────────
+export function ManifestsView() {
+  const [filters, setFilters] = useState<FilterState>({
+    q: '',
+    region: '',
+    priority: '',
+    status: '',
+  });
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'manifest_id', desc: false }]);
+  // Incremented on full filter reset so FilterToolbar remounts and reinitialises
+  // its local inputQ from the (now-empty) filters.q — avoids a sync setState effect.
+  const [resetKey, setResetKey] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const selectedIds = useSelectionStore((s) => s.selectedIds);
+
+  const query = useMemo(
+    () => ({
+      q: filters.q || undefined,
+      region: filters.region || undefined,
+      priority: (filters.priority as Priority) || undefined,
+      status: (filters.status as ManifestStatus) || undefined,
+    }),
+    [filters],
+  );
+
+  const { data, isLoading, isFetching } = useManifests(query);
+  const manifests = data?.data ?? []; // stable alias used by the grid
+  const total = data?.total ?? 0;
+
+  // Summary counts derived from the fetched dataset; depend on `data` (stable reference).
+  const statusCounts = useMemo(() => {
+    const counts: Partial<Record<ManifestStatus, number>> = {};
+    for (const m of (data?.data ?? [])) counts[m.status] = (counts[m.status] ?? 0) + 1;
+    return counts;
+  }, [data]);
+
+  const hasFilters = !!(filters.q || filters.region || filters.priority || filters.status);
+
+  // Resolve selected ids → full Manifest objects for the optimize drawer.
+  // Depends on stable `data` (not the per-render `manifests` alias).
+  const selectedManifests = useMemo(() => {
+    const set = new Set(selectedIds);
+    return (data?.data ?? []).filter((m) => set.has(m.manifest_id));
+  }, [data, selectedIds]);
+
+  const handleOptimize = () => {
+    if (selectedIds.length > 0) setDrawerOpen(true);
+  };
+
+  const handleFilterChange = (patch: Partial<FilterState>) =>
+    setFilters((prev) => ({ ...prev, ...patch }));
+
+  const handleClearFilters = () => {
+    setFilters({ q: '', region: '', priority: '', status: '' });
+    setResetKey((k) => k + 1); // remount FilterToolbar so its inputQ reinitialises
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-52px)] flex-col gap-4 overflow-hidden p-5 animate-fade-up">
       <PageHeader
         title="Manifest Grid"
-        meta="10,000 records · compact density · Bali region"
+        meta={`${total > 0 ? total.toLocaleString('en-US') : '10,000'} records · compact density · Bali region`}
         actions={
-          <>
-            <Button variant="secondary">
-              <Filter className="h-3.5 w-3.5" /> Filter
-            </Button>
-            <Button variant="primary">
-              <Zap className="h-3.5 w-3.5" fill="currentColor" /> Optimize Selected
+          <button
+            onClick={handleOptimize}
+            disabled={selectedIds.length === 0}
+            className={cn(
+              'flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[12px] font-semibold transition-all',
+              selectedIds.length > 0
+                ? 'cursor-pointer bg-accent text-white shadow-[0_2px_8px_rgba(30,138,99,0.3)] hover:bg-accent-hover'
+                : 'cursor-not-allowed border border-border bg-surface-2 text-text-muted opacity-50',
+            )}
+          >
+            <Zap className="h-3.5 w-3.5" fill={selectedIds.length > 0 ? 'currentColor' : 'none'} />
+            Optimize Selected
+            {selectedIds.length > 0 && (
               <span className="rounded-full bg-white/20 px-1.5 py-px font-mono text-[10px] font-bold">
-                {selectedCount}
+                {selectedIds.length}
               </span>
-            </Button>
-          </>
+            )}
+          </button>
         }
       />
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-surface-1">
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-0/40 px-3.5 py-2.5">
-          <SearchField placeholder="Search manifest ID / recipient…" className="min-w-[200px] max-w-[320px] flex-1" />
-          {['Region', 'Priority', 'Status'].map((f) => (
-            <button
-              key={f}
-              className="flex h-[34px] items-center gap-1.5 rounded-lg border border-border bg-surface-0/40 px-3 text-[11.5px] text-text-secondary hover:bg-surface-2"
-            >
-              {f}
-              <ChevronDown className="h-3 w-3 opacity-50" />
-            </button>
-          ))}
-          <span className="ml-auto font-mono text-[11px] text-text-muted">10,000 manifests</span>
-        </div>
-
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse">
-            <thead>
-              <tr className="border-b border-border bg-surface-0/40">
-                <th className="sticky left-0 z-[2] w-9 bg-surface-1 px-3 py-2.5">
-                  <Checkbox indeterminate className="mx-auto" />
-                </th>
-                {COLUMNS.map((c, i) => (
-                  <th
-                    key={c}
-                    className={cn(
-                      'cursor-pointer px-3 py-2.5 text-[9.5px] font-bold uppercase tracking-wider text-text-muted',
-                      c === 'Weight (kg)' ? 'text-right' : 'text-left',
-                      i === 0 && 'sticky left-9 z-[2] bg-surface-1',
-                    )}
-                  >
-                    {c}
-                    {i === 0 && <span className="text-text-secondary"> ↑</span>}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {SAMPLE_MANIFESTS.map((m) => {
-                const selected = PRESELECTED_IDS.includes(m.id);
-                return (
-                  <tr
-                    key={m.id}
-                    className={cn(
-                      'border-t border-border-subtle transition-colors hover:bg-surface-2/60',
-                      selected && 'bg-accent/[0.08]',
-                    )}
-                  >
-                    <td
-                      className={cn('sticky left-0 z-[1] px-3 py-[7px]', selected ? 'bg-surface-3' : 'bg-surface-1')}
-                    >
-                      <Checkbox checked={selected} className="mx-auto" />
-                    </td>
-                    <td
-                      className={cn(
-                        'sticky left-9 z-[1] whitespace-nowrap px-3 py-[7px] font-mono text-[11.5px] font-semibold',
-                        selected ? 'bg-surface-3 text-accent-bright' : 'bg-surface-1 text-text-secondary',
-                      )}
-                    >
-                      {m.id}
-                    </td>
-                    <td className="max-w-[200px] truncate px-3 py-[7px] text-xs text-text-secondary">{m.recipient}</td>
-                    <td className="whitespace-nowrap px-3 py-[7px] text-[11.5px] text-text-muted">{m.region}</td>
-                    <td className="px-3 py-[7px]">
-                      <PriorityChip priority={m.priority} />
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-[7px] text-right font-mono text-[11.5px] text-text-secondary">
-                      {formatWeight(m.weight)}
-                    </td>
-                    <td className="px-3 py-[7px]">
-                      <StatusBadge status={m.status} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-border-subtle bg-surface-0/40 px-3.5 py-2.5">
-          <span className="font-mono text-[11px] text-text-muted">Showing 1–15 of 10,000</span>
-          <div className="flex items-center gap-3.5">
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono text-[9px] uppercase tracking-wide text-text-muted">Virtual scroll</span>
-              <div className="h-[3px] w-[72px] overflow-hidden rounded-full bg-border">
-                <div className="h-full w-[6%] rounded-full bg-accent" />
-              </div>
-              <span className="font-mono text-[9px] text-text-muted">0.2%</span>
-            </div>
-            <div className="flex gap-1">
-              {['1', '2', '3', '4'].map((p) => (
-                <button
-                  key={p}
-                  className={cn(
-                    'flex h-[26px] min-w-[26px] items-center justify-center rounded-md px-1.5 text-[11px]',
-                    p === '1'
-                      ? 'bg-accent font-bold text-white'
-                      : 'border border-border text-text-muted hover:bg-surface-2',
-                  )}
-                >
-                  {p}
-                </button>
-              ))}
+      {/* Summary stat cards */}
+      <div className="flex gap-3 overflow-x-auto pb-0.5">
+        <div className="flex min-w-32.5 flex-1 items-center gap-3 rounded-[13px] border border-border bg-surface-1 px-4 py-3">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-text-muted" />
+          <div className="min-w-0">
+            <div className="font-mono text-[10px] uppercase tracking-wide text-text-muted">Total</div>
+            <div className="mt-0.5 font-display text-[18px] font-bold leading-none text-text-primary">
+              {isLoading ? '—' : total.toLocaleString('en-US')}
             </div>
           </div>
         </div>
+        {SUMMARY_STATUSES.map(({ status, label }) => (
+          <StatCard
+            key={status}
+            label={label}
+            count={isLoading ? 0 : (statusCounts[status] ?? 0)}
+            color={STATUS_CONFIG[status].text}
+          />
+        ))}
       </div>
+
+      {/* Table card */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface-1">
+        <FilterToolbar
+          key={resetKey}
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          total={total}
+          selectedCount={selectedIds.length}
+          onOptimize={handleOptimize}
+        />
+        <ManifestDataGrid
+          data={manifests}
+          total={total}
+          isLoading={isLoading}
+          isFetching={isFetching}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          onClearFilters={handleClearFilters}
+          hasFilters={hasFilters}
+        />
+      </div>
+
+      <OptimizeDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        selectedManifests={selectedManifests}
+      />
     </div>
   );
 }
