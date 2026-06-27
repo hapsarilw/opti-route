@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
 import { formatWeight } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import type { AssignDriverContext } from '@/features/dispatch';
 import { OptimizeError } from '../api/optimize-api';
 import { useIdleFleet } from '../hooks/useIdleFleet';
 import { useOptimizeRoute } from '../hooks/useOptimizeRoute';
@@ -19,8 +20,8 @@ interface OptimizeDrawerProps {
   open: boolean;
   onClose: () => void;
   selectedManifests: Manifest[];
-  /** Phase 5 hook — leads to driver assignment (Process 3). */
-  onAssignDriver?: (routeId: string) => void;
+  /** Opens the AssignDriverModal (Process 3) with the optimized route context. */
+  onAssignDriver?: (ctx: AssignDriverContext) => void;
 }
 
 const SECTION = 'border-b border-border p-3.5';
@@ -294,7 +295,17 @@ export function OptimizeDrawer({ open, onClose, selectedManifests, onAssignDrive
                 variant="primary"
                 size="lg"
                 className="w-full"
-                onClick={() => result && onAssignDriver?.(result.route_id)}
+                onClick={() => {
+                  if (result && selectedFleet) {
+                    onAssignDriver?.({
+                      routeId: result.route_id,
+                      fleetId,
+                      stopCount: result.optimized_sequence.length,
+                      etaMins: result.estimated_total_duration_mins,
+                      vehicleLabel: fleetLabel(selectedFleet),
+                    });
+                  }
+                }}
               >
                 <ClipboardCheck className="h-3.5 w-3.5" /> Assign Driver
               </Button>

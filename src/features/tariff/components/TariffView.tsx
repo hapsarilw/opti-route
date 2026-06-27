@@ -1,6 +1,7 @@
 'use client';
 
 import { Lock, Pencil, Trash2, Eye, ArrowLeft } from 'lucide-react';
+import type { Role } from '@/types';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -8,6 +9,20 @@ import { Can } from '@/components/rbac/Can';
 import { useAuthStore } from '@/stores/auth-store';
 import { tariffAccess } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
+
+/** "● role admin" pill — green for admin (write), amber for manager (read). */
+function RoleBadge({ role }: { role: Role }) {
+  const color = role === 'admin' ? '#3FBF8E' : role === 'manager' ? '#FBBF24' : '#F87171';
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-input border px-3 py-1.5 font-mono text-[11px] font-bold"
+      style={{ color, borderColor: `${color}4D`, backgroundColor: `${color}1F` }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+      role {role}
+    </span>
+  );
+}
 
 const BASE_FIELDS = [
   { label: 'Base Rate per KM', prefix: 'Rp', value: '3.500', suffix: '/ km', hint: 'Standard distance rate' },
@@ -119,16 +134,19 @@ export function TariffView() {
         meta="Last modified Jun 12, 2026 · usr_admin_01"
         actions={
           <>
+            <RoleBadge role={role} />
             <Can permission="config:tariff:write">
               <Button variant="primary">
                 <Pencil className="h-3.5 w-3.5" /> Edit Tariff
               </Button>
+            </Can>
+            <Can permission="manifest:delete">
               <Button variant="danger">
                 <Trash2 className="h-3.5 w-3.5" /> Delete Manifest
               </Button>
             </Can>
             {locked && (
-              <span className="inline-flex items-center gap-1.5 rounded-[9px] border border-[#FBBF24]/30 bg-[#FBBF24]/10 px-3 py-1.5 text-xs font-bold text-[#FBBF24]">
+              <span className="inline-flex items-center gap-1.5 rounded-input border border-[#FBBF24]/30 bg-[#FBBF24]/10 px-3 py-1.5 text-xs font-bold text-[#FBBF24]">
                 <Eye className="h-3.5 w-3.5" /> View only
               </span>
             )}

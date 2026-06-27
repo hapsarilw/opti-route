@@ -11,10 +11,10 @@ const TONES: Record<
   AlertTone,
   { accent: string; title: string; bg: string; border: string; icon: LucideIcon }
 > = {
-  success: { accent: '#3FBF8E', title: '#3FBF8E', bg: 'rgba(30,138,99,0.08)', border: 'rgba(30,138,99,0.2)', icon: CheckCircle2 },
-  warning: { accent: '#FBBF24', title: '#FBBF24', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', icon: AlertTriangle },
-  error: { accent: '#F87171', title: '#F87171', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.2)', icon: XCircle },
-  info: { accent: '#60A5FA', title: '#60A5FA', bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.2)', icon: Info },
+  success: { accent: '#3FBF8E', title: '#3FBF8E', bg: '#13201A', border: 'rgba(30,138,99,0.5)', icon: CheckCircle2 },
+  warning: { accent: '#FBBF24', title: '#FBBF24', bg: '#1C1A0F', border: 'rgba(245,158,11,0.5)', icon: AlertTriangle },
+  error: { accent: '#F87171', title: '#F87171', bg: '#1C1010', border: 'rgba(239,68,68,0.5)', icon: XCircle },
+  info: { accent: '#60A5FA', title: '#60A5FA', bg: '#101520', border: 'rgba(59,130,246,0.5)', icon: Info },
 };
 
 export function Alert({

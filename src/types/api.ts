@@ -27,6 +27,12 @@ export interface FleetQuery {
   limit?: number;
 }
 
+/** GET /api/v1/drivers — driver roster (Process 3 assignment). */
+export interface DriverListResponse {
+  data: import('./driver').Driver[];
+  total: number;
+}
+
 export interface FleetListResponse {
   data: Fleet[];
   total: number;

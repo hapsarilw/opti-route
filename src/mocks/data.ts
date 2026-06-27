@@ -285,3 +285,9 @@ export const db = {
   users: USERS,
   origin: WAREHOUSE_ORIGIN,
 } as const;
+
+/**
+ * Route → manifest IDs map (populated by the optimize handler, consumed by
+ * the dispatch handler to update MANIFESTS in-memory so refetches stay fresh).
+ */
+export const routeManifestMap = new Map<string, string[]>();

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, Zap } from 'lucide-react';
 import { SearchField } from '@/components/ui/SearchField';
+import { Can } from '@/components/rbac/Can';
 import { cn } from '@/lib/utils';
 import { MANIFEST_STATUSES, PRIORITIES } from '@/types';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/config/status';
@@ -135,24 +136,26 @@ export function FilterToolbar({ filters, onFilterChange, total, selectedCount, o
         {total.toLocaleString('en-US')} manifests
       </span>
 
-      <button
-        onClick={canOptimize ? onOptimize : undefined}
-        disabled={!canOptimize}
-        className={cn(
-          'flex h-8.5 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition-all',
-          canOptimize
-            ? 'cursor-pointer border-none bg-accent text-white shadow-[0_2px_8px_rgba(30,138,99,0.3)] hover:bg-accent-hover'
-            : 'cursor-not-allowed border border-border bg-surface-2 text-text-muted opacity-50',
-        )}
-      >
-        <Zap className="h-3.5 w-3.5 shrink-0" fill={canOptimize ? 'currentColor' : 'none'} />
-        Optimize Route
-        {canOptimize && (
-          <span className="rounded-full bg-white/20 px-1.5 py-px font-mono text-[10px] font-bold">
-            {selectedCount}
-          </span>
-        )}
-      </button>
+      <Can permission="route:optimize">
+        <button
+          onClick={canOptimize ? onOptimize : undefined}
+          disabled={!canOptimize}
+          className={cn(
+            'flex h-8.5 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition-all',
+            canOptimize
+              ? 'cursor-pointer border-none bg-accent text-white shadow-[0_2px_8px_rgba(30,138,99,0.3)] hover:bg-accent-hover'
+              : 'cursor-not-allowed border border-border bg-surface-2 text-text-muted opacity-50',
+          )}
+        >
+          <Zap className="h-3.5 w-3.5 shrink-0" fill={canOptimize ? 'currentColor' : 'none'} />
+          Optimize Route
+          {canOptimize && (
+            <span className="rounded-full bg-white/20 px-1.5 py-px font-mono text-[10px] font-bold">
+              {selectedCount}
+            </span>
+          )}
+        </button>
+      </Can>
     </div>
   );
 }

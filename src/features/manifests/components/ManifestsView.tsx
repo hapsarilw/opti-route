@@ -8,7 +8,9 @@ import { useSelectionStore } from '@/stores/selection-store';
 import type { ManifestStatus, Priority } from '@/types';
 import { STATUS_CONFIG } from '@/config/status';
 import { cn } from '@/lib/utils';
+import { Can } from '@/components/rbac/Can';
 import { OptimizeDrawer } from '@/features/optimize';
+import { AssignDriverModal, type AssignDriverContext } from '@/features/dispatch';
 import { useManifests } from '../hooks/useManifests';
 import { FilterToolbar, type FilterState } from './FilterToolbar';
 import { ManifestDataGrid } from './ManifestDataGrid';
@@ -48,6 +50,7 @@ export function ManifestsView() {
   // its local inputQ from the (now-empty) filters.q — avoids a sync setState effect.
   const [resetKey, setResetKey] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [assignCtx, setAssignCtx] = useState<AssignDriverContext | null>(null);
 
   const selectedIds = useSelectionStore((s) => s.selectedIds);
 
@@ -61,7 +64,7 @@ export function ManifestsView() {
     [filters],
   );
 
-  const { data, isLoading, isFetching } = useManifests(query);
+  const { data, isLoading, isFetching, isError, refetch } = useManifests(query);
   const manifests = data?.data ?? []; // stable alias used by the grid
   const total = data?.total ?? 0;
 
@@ -99,24 +102,26 @@ export function ManifestsView() {
         title="Manifest Grid"
         meta={`${total > 0 ? total.toLocaleString('en-US') : '10,000'} records · compact density · Bali region`}
         actions={
-          <button
-            onClick={handleOptimize}
-            disabled={selectedIds.length === 0}
-            className={cn(
-              'flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[12px] font-semibold transition-all',
-              selectedIds.length > 0
-                ? 'cursor-pointer bg-accent text-white shadow-[0_2px_8px_rgba(30,138,99,0.3)] hover:bg-accent-hover'
-                : 'cursor-not-allowed border border-border bg-surface-2 text-text-muted opacity-50',
-            )}
-          >
-            <Zap className="h-3.5 w-3.5" fill={selectedIds.length > 0 ? 'currentColor' : 'none'} />
-            Optimize Selected
-            {selectedIds.length > 0 && (
-              <span className="rounded-full bg-white/20 px-1.5 py-px font-mono text-[10px] font-bold">
-                {selectedIds.length}
-              </span>
-            )}
-          </button>
+          <Can permission="route:optimize">
+            <button
+              onClick={handleOptimize}
+              disabled={selectedIds.length === 0}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[12px] font-semibold transition-all',
+                selectedIds.length > 0
+                  ? 'cursor-pointer bg-accent text-white shadow-[0_2px_8px_rgba(30,138,99,0.3)] hover:bg-accent-hover'
+                  : 'cursor-not-allowed border border-border bg-surface-2 text-text-muted opacity-50',
+              )}
+            >
+              <Zap className="h-3.5 w-3.5" fill={selectedIds.length > 0 ? 'currentColor' : 'none'} />
+              Optimize Selected
+              {selectedIds.length > 0 && (
+                <span className="rounded-full bg-white/20 px-1.5 py-px font-mono text-[10px] font-bold">
+                  {selectedIds.length}
+                </span>
+              )}
+            </button>
+          </Can>
         }
       />
 
@@ -156,6 +161,8 @@ export function ManifestsView() {
           total={total}
           isLoading={isLoading}
           isFetching={isFetching}
+          isError={isError}
+          onRetry={() => refetch()}
           sorting={sorting}
           onSortingChange={setSorting}
           onClearFilters={handleClearFilters}
@@ -167,7 +174,19 @@ export function ManifestsView() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         selectedManifests={selectedManifests}
+        onAssignDriver={(ctx) => {
+          setDrawerOpen(false);
+          setAssignCtx(ctx);
+        }}
       />
+
+      {assignCtx && (
+        <AssignDriverModal
+          open={assignCtx !== null}
+          onClose={() => setAssignCtx(null)}
+          ctx={assignCtx}
+        />
+      )}
     </div>
   );
 }

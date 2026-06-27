@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { Search } from 'lucide-react';
+import { useAuthStore } from '@/stores/auth-store';
 import { LiveIndicator } from './LiveIndicator';
 import { RoleSwitcher } from './RoleSwitcher';
 import { ThemeToggle } from './ThemeToggle';
@@ -19,8 +20,17 @@ function breadcrumbFor(pathname: string): string {
   return hit ? BREADCRUMBS[hit] : 'Dashboard';
 }
 
+/** Two-letter avatar initials per role (matches the RBAC prototype: AD / DS / MG). */
+const ROLE_INITIALS: Record<string, string> = {
+  admin: 'AD',
+  dispatcher: 'DS',
+  manager: 'MG',
+};
+
 export function TopBar() {
   const pathname = usePathname();
+  const role = useAuthStore((s) => s.user.role);
+  const initials = ROLE_INITIALS[role] ?? 'US';
 
   return (
     <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-border bg-sidebar px-5">
@@ -46,7 +56,7 @@ export function TopBar() {
 
       {/* Avatar */}
       <div className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-border bg-gradient-to-br from-accent to-[#3B5A8C] font-display text-[11px] font-bold text-white">
-        US
+        {initials}
       </div>
     </header>
   );

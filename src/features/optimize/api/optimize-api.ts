@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { OptimizeRequest, OptimizeResponse } from '@/types';
 
 /** Error carrying an optional HTTP/AI status code for the drawer's error caption. */
@@ -8,6 +9,34 @@ export class OptimizeError extends Error {
     this.name = 'OptimizeError';
     this.code = code;
   }
+}
+
+const coordinateSchema = z.object({ lat: z.number(), lng: z.number() });
+
+/**
+ * Structured-output contract for the AI route response (Doc 01 §5.2 / SDD §14).
+ * Validating with zod is the "invalid JSON → error" guard: the LLM (or mock)
+ * MUST return this exact shape or we fall back rather than render garbage.
+ */
+export const optimizeResponseSchema = z.object({
+  status: z.enum(['success', 'error']),
+  route_id: z.string(),
+  optimized_sequence: z.array(z.string()),
+  waypoints: z.array(coordinateSchema),
+  estimated_total_duration_mins: z.number(),
+  ai_insights: z.string(),
+});
+
+/**
+ * Parse + validate a raw AI response into a typed `OptimizeResponse`.
+ * Valid JSON matching the schema → typed object; anything else → OptimizeError.
+ */
+export function parseOptimizeResponse(raw: unknown): OptimizeResponse {
+  const result = optimizeResponseSchema.safeParse(raw);
+  if (!result.success) {
+    throw new OptimizeError('The AI engine returned a malformed route response.');
+  }
+  return result.data;
 }
 
 /**
@@ -32,7 +61,8 @@ export async function postOptimize(payload: OptimizeRequest): Promise<OptimizeRe
     throw new OptimizeError(`AI server responded with ${res.status}. Please try again.`, res.status);
   }
 
-  return (await res.json()) as OptimizeResponse;
+  // zod-validate the structured output before trusting it (SDD §14).
+  return parseOptimizeResponse(await res.json());
 }
 
 /**

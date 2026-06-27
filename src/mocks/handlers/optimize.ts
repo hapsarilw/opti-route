@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import type { Coordinate, OptimizeDestination, OptimizeRequest, OptimizeResponse } from '@/types';
 import { haversineKm } from '@/lib/haversine';
+import { routeManifestMap } from '../data';
 
 const AVG_SPEED_KMH = 30; // realistic Bali urban/rural average
 const SERVICE_MINS_PER_STOP = 8; // unloading + paperwork per drop-off
@@ -90,6 +91,9 @@ export const optimizeHandler = http.post('/api/v1/route/optimize', async ({ requ
     durationMins: estimated_total_duration_mins,
     firstStop: optimized_sequence[0],
   });
+
+  // Store manifest IDs so the dispatch handler can update them in-memory.
+  routeManifestMap.set(route_id, optimized_sequence);
 
   const body: OptimizeResponse = {
     status: 'success',

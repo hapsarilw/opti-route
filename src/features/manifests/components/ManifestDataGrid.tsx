@@ -1,17 +1,18 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, memo } from 'react';
 import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
+  type Row,
   type SortingState,
   type OnChangeFn,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, AlertTriangle } from 'lucide-react';
 import type { Manifest, Priority } from '@/types';
 import { useSelectionStore } from '@/stores/selection-store';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -217,6 +218,28 @@ function buildColumns(
   ];
 }
 
+// ── Memoized row ───────────────────────────────────────────────────────────
+// Only the ~20–30 virtualized rows are in the DOM, but selection churn (clicking
+// rows / select-all) re-renders the grid. React.memo keyed on this row's own
+// `selected` flag + its stable `row.original` reference means a single-row click
+// re-renders just that row, not every visible one — protecting INP (SDD §10).
+const GridRow = memo(
+  function GridRow({ row, selected }: { row: Row<Manifest>; selected: boolean }) {
+    return (
+      <tr
+        style={{ height: ROW_HEIGHT }}
+        className={cn(
+          'border-t border-border-subtle transition-colors hover:bg-surface-2/40',
+          selected && 'bg-accent/[0.07]',
+        )}
+      >
+        {row.getVisibleCells().map((cell) => flexRender(cell.column.columnDef.cell, cell.getContext()))}
+      </tr>
+    );
+  },
+  (prev, next) => prev.selected === next.selected && prev.row.original === next.row.original,
+);
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 interface ManifestDataGridProps {
@@ -224,6 +247,8 @@ interface ManifestDataGridProps {
   total: number;
   isLoading: boolean;
   isFetching: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
   sorting: SortingState;
   onSortingChange: OnChangeFn<SortingState>;
   onClearFilters: () => void;
@@ -235,6 +260,8 @@ export function ManifestDataGrid({
   total,
   isLoading,
   isFetching,
+  isError = false,
+  onRetry,
   sorting,
   onSortingChange,
   onClearFilters,
@@ -281,8 +308,9 @@ export function ManifestDataGrid({
   const displayStart = total > 0 ? 1 : 0;
   const displayEnd = Math.min(data.length, total);
 
-  // ── Empty state ──────────────────────────────────────────────────────────
-  const isEmpty = !isLoading && data.length === 0;
+  // ── Empty / error states ───────────────────────────────────────────────────
+  const showError = isError && data.length === 0;
+  const isEmpty = !isLoading && !showError && data.length === 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -323,6 +351,27 @@ export function ManifestDataGrid({
           <tbody>
             {isLoading ? (
               <SkeletonRows />
+            ) : showError ? (
+              <tr>
+                <td colSpan={7}>
+                  <div className="flex flex-col items-center justify-center gap-3 py-16">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-error/30 bg-error/12">
+                      <AlertTriangle className="h-5 w-5 text-[#F87171]" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[13px] font-semibold text-text-secondary">Couldn’t load manifests</p>
+                      <p className="mt-1 text-[11px] text-text-muted">
+                        The manifest service didn’t respond. Check your connection and try again.
+                      </p>
+                    </div>
+                    {onRetry && (
+                      <Button variant="secondary" onClick={onRetry}>
+                        Retry
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
             ) : isEmpty ? (
               <tr>
                 <td colSpan={7}>
@@ -355,21 +404,12 @@ export function ManifestDataGrid({
 
                 {virtualItems.map((vi) => {
                   const row = rows[vi.index];
-                  const id = row.original.manifest_id;
-                  const selected = selectedSet.has(id);
                   return (
-                    <tr
+                    <GridRow
                       key={row.id}
-                      style={{ height: ROW_HEIGHT }}
-                      className={cn(
-                        'border-t border-border-subtle transition-colors hover:bg-surface-2/40',
-                        selected && 'bg-accent/[0.07]',
-                      )}
-                    >
-                      {row.getVisibleCells().map((cell) =>
-                        flexRender(cell.column.columnDef.cell, cell.getContext()),
-                      )}
-                    </tr>
+                      row={row}
+                      selected={selectedSet.has(row.original.manifest_id)}
+                    />
                   );
                 })}
 
