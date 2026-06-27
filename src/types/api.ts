@@ -74,3 +74,47 @@ export interface TelemetryMessage {
   type: 'telemetry';
   pings: import('./telemetry').TelemetryPing[];
 }
+
+/**
+ * Process 4 — Live Monitoring view models (served by the telemetry simulation).
+ * `MonitoredFleet` is the roster metadata for a vehicle on the live map; the live
+ * position/speed/heading/off-route values stream in via `TelemetryPing` and are
+ * merged client-side. EXCEPTION is *derived* from `is_off_route`, so a roster
+ * `status` only ever carries a base operational state.
+ */
+export type MonitorStatus = 'IN_TRANSIT' | 'DELAYED' | 'DISPATCHED' | 'EXCEPTION' | 'PARKED';
+
+export interface MonitoredFleet {
+  fleet_id: string; // "FLT-001"
+  driver_name: string;
+  manifest_id: string; // active manifest being carried
+  status: MonitorStatus; // base operational state (never EXCEPTION at rest)
+  position: Coordinate; // initial position (live values arrive via telemetry)
+  speed_kmh: number;
+  heading: number; // 0–359
+  eta: string; // "14:30" | "TBD"
+  is_off_route: boolean;
+}
+
+/** A numbered drop-off on the active AI route. */
+export interface RouteDropoff {
+  seq: number;
+  lat: number;
+  lng: number;
+  manifest_id: string;
+}
+
+/** The single "active" optimized route drawn on the map (Process 2 output). */
+export interface ActiveRoute {
+  route_id: string;
+  fleet_id: string;
+  waypoints: Coordinate[]; // origin first, then drop-offs in sequence
+  dropoffs: RouteDropoff[];
+}
+
+/** GET /api/v1/fleet/active — roster + active route for the live map. */
+export interface ActiveFleetResponse {
+  fleets: MonitoredFleet[];
+  route: ActiveRoute | null;
+  server_time: string; // ISO8601
+}

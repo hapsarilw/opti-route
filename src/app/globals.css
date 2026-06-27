@@ -187,3 +187,22 @@
   background: var(--glass);
   backdrop-filter: blur(12px);
 }
+
+/* ── Mapbox popup theming (Process 4 live map) ───────────────────────────── */
+/* The default Mapbox popup is a white bubble; strip it so our dark card shows. */
+.mapboxgl-popup-content {
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 10px;
+}
+.mapboxgl-popup-close-button {
+  display: none;
+}
+.mapboxgl-popup-tip {
+  border-top-color: var(--route);
+  opacity: 0.5;
+}
+.mapboxgl-ctrl-attrib.mapboxgl-compact {
+  background: var(--glass);
+}

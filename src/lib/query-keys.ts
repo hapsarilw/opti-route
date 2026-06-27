@@ -23,5 +23,7 @@ export const queryKeys = {
   },
   telemetry: {
     all: ['telemetry'] as const,
+    pings: ['telemetry', 'pings'] as const,
+    activeFleet: ['telemetry', 'active-fleet'] as const,
   },
 } as const;
