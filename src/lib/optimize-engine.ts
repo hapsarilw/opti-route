@@ -1,7 +1,21 @@
-import { http, HttpResponse } from 'msw';
 import type { Coordinate, OptimizeDestination, OptimizeRequest, OptimizeResponse } from '@/types';
 import { haversineKm } from '@/lib/haversine';
-import { routeManifestMap } from '../data';
+
+/**
+ * Deterministic route optimizer — Process 2 (Doc 01 §5.2).
+ *
+ * This is the always-ready fallback for the AI optimizer in the
+ * `/api/v1/route/optimize` route handler (SDD §14): if the LLM is unavailable,
+ * returns invalid JSON, or proposes an out-of-selection manifest, we fall back
+ * here so the dispatcher always gets a usable route.
+ *
+ * Heuristic: HIGH-priority stops are sequenced first via nearest-neighbour from
+ * the warehouse origin, then the remaining NORMAL/LOW stops continue
+ * nearest-neighbour from the last HIGH point. Output matches the Doc 01 §5.2
+ * schema exactly, so it is interchangeable with the AI response.
+ *
+ * Pure: no side effects. The caller owns persistence (e.g. routeManifestMap).
+ */
 
 const AVG_SPEED_KMH = 30; // realistic Bali urban/rural average
 const SERVICE_MINS_PER_STOP = 8; // unloading + paperwork per drop-off
@@ -38,41 +52,32 @@ function nearestNeighbour(
   return { order, last: cursor };
 }
 
+/** A fresh mock route id like "rt_8841". */
+export function generateRouteId(): string {
+  return `rt_${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
 /**
- * POST /api/v1/route/optimize — Process 2 (Doc 01 §5.2).
- *
- * MOCK optimizer (no LLM yet): HIGH-priority stops are sequenced first via
- * nearest-neighbour from the warehouse origin, then the remaining NORMAL/LOW
- * stops continue nearest-neighbour from the last HIGH point. Response matches
- * the Doc 01 §5.2 schema exactly so the real LLM can be dropped in later.
+ * Total payload weight (kg) a route must carry — the sum of every destination's
+ * load. Used to validate that the chosen fleet's `capacity_kg` is sufficient
+ * before a route is optimized/dispatched (Doc 01 §2.2).
  */
-export const optimizeHandler = http.post('/api/v1/route/optimize', async ({ request }) => {
-  const payload = (await request.json()) as OptimizeRequest;
-  const { origin_coordinate, destinations } = payload;
+export function routeLoadKg(destinations: Pick<OptimizeDestination, 'weight_kg'>[]): number {
+  return destinations.reduce((sum, d) => sum + (d.weight_kg ?? 0), 0);
+}
 
-  if (!destinations?.length) {
-    const empty: OptimizeResponse = {
-      status: 'error',
-      route_id: '',
-      optimized_sequence: [],
-      waypoints: [origin_coordinate],
-      estimated_total_duration_mins: 0,
-      ai_insights: 'No destinations supplied — nothing to optimize.',
-    };
-    return HttpResponse.json(empty, { status: 400 });
-  }
+/**
+ * Derive the map geometry for a visit order: the polyline waypoints (origin
+ * first, then each stop) and the estimated total duration. This is deterministic
+ * given the sequence, so it is computed server-side rather than trusted from an
+ * LLM — small models routinely mangle waypoint alignment and duration math.
+ */
+export function routeGeometry(
+  origin: Coordinate,
+  ordered: OptimizeDestination[],
+): { waypoints: Coordinate[]; distanceKm: number; estimated_total_duration_mins: number } {
+  const waypoints: Coordinate[] = [origin, ...ordered.map(asCoord)];
 
-  const high = destinations.filter((d) => d.priority === 'HIGH');
-  const rest = destinations.filter((d) => d.priority !== 'HIGH');
-
-  const highLeg = nearestNeighbour(origin_coordinate, high);
-  const restLeg = nearestNeighbour(highLeg.last, rest);
-  const ordered = [...highLeg.order, ...restLeg.order];
-
-  // Waypoints: origin first, then each stop in visit order (for the map polyline).
-  const waypoints: Coordinate[] = [origin_coordinate, ...ordered.map(asCoord)];
-
-  // Estimated duration: travel time across all legs + fixed service time per stop.
   let distanceKm = 0;
   for (let i = 1; i < waypoints.length; i++) {
     distanceKm += haversineKm(waypoints[i - 1], waypoints[i]);
@@ -81,8 +86,26 @@ export const optimizeHandler = http.post('/api/v1/route/optimize', async ({ requ
     (distanceKm / AVG_SPEED_KMH) * 60 + ordered.length * SERVICE_MINS_PER_STOP,
   );
 
+  return { waypoints, distanceKm, estimated_total_duration_mins };
+}
+
+/** Run the deterministic optimizer over a request, returning a Doc 01 §5.2 response. */
+export function runMockOptimize(payload: OptimizeRequest): OptimizeResponse {
+  const { origin_coordinate, destinations } = payload;
+
+  const high = destinations.filter((d) => d.priority === 'HIGH');
+  const rest = destinations.filter((d) => d.priority !== 'HIGH');
+
+  const highLeg = nearestNeighbour(origin_coordinate, high);
+  const restLeg = nearestNeighbour(highLeg.last, rest);
+  const ordered = [...highLeg.order, ...restLeg.order];
+
+  const { waypoints, distanceKm, estimated_total_duration_mins } = routeGeometry(
+    origin_coordinate,
+    ordered,
+  );
+
   const optimized_sequence = ordered.map((d) => d.manifest_id);
-  const route_id = `rt_${Math.floor(1000 + Math.random() * 9000)}`;
 
   const ai_insights = buildInsights({
     highCount: high.length,
@@ -92,19 +115,15 @@ export const optimizeHandler = http.post('/api/v1/route/optimize', async ({ requ
     firstStop: optimized_sequence[0],
   });
 
-  // Store manifest IDs so the dispatch handler can update them in-memory.
-  routeManifestMap.set(route_id, optimized_sequence);
-
-  const body: OptimizeResponse = {
+  return {
     status: 'success',
-    route_id,
+    route_id: generateRouteId(),
     optimized_sequence,
     waypoints,
     estimated_total_duration_mins,
     ai_insights,
   };
-  return HttpResponse.json(body);
-});
+}
 
 function buildInsights(args: {
   highCount: number;

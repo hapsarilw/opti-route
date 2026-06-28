@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { DispatchRequest, DispatchResponse, Route } from '@/types';
 import { queryKeys } from '@/lib/query-keys';
 import { toast } from '@/stores/toast-store';
+import { setActiveRoute } from '@/mocks/telemetry-sim';
+import { DRIVERS } from '@/mocks/data';
 import { postDispatch } from '../api/dispatch-api';
 import { markDispatched } from '../lib/dispatch-cache';
 
@@ -23,6 +25,11 @@ export function useDispatch() {
       const route = qc.getQueryData<Route>(queryKeys.route.detail(route_id));
       if (route) {
         markDispatched(qc, route.optimized_sequence, driver_id, fleet_id);
+        // Push the dispatched route into the live-map simulation so Process 4
+        // shows the dispatcher's actual sequence (not the seeded placeholder),
+        // stamped with the driver chosen in the assign modal.
+        const driver = DRIVERS.find((d) => d.driver_id === driver_id);
+        setActiveRoute({ ...route, fleet_id }, { driver_id, driver_name: driver?.name });
       }
       // Refetch fleet + drivers so live map and assignment lists stay fresh
       qc.invalidateQueries({ queryKey: queryKeys.fleet.all });

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { OptimizeRequest, OptimizeResponse } from '@/types';
 import { queryKeys } from '@/lib/query-keys';
 import { toast } from '@/stores/toast-store';
+import { recordRouteManifests } from '@/mocks/data';
 import { assertSequenceWithinSelection, postOptimize } from '../api/optimize-api';
 import { applyOptimized, buildRoute, markOptimizing, rollbackToQueued } from '../lib/route-cache';
 
@@ -34,6 +35,9 @@ export function useOptimizeRoute() {
     onSuccess: ({ res, payload }) => {
       applyOptimized(qc, res);
       qc.setQueryData(queryKeys.route.detail(res.route_id), buildRoute(res, payload));
+      // The real optimize route handler runs server-side, so bridge the route's
+      // manifest IDs into the browser-side mock store the dispatch handler reads.
+      recordRouteManifests(res.route_id, res.optimized_sequence);
       toast.success(
         'Route optimized',
         `${res.optimized_sequence.length} stops sequenced · ~${res.estimated_total_duration_mins} min ETA`,

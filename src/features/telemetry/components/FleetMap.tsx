@@ -21,6 +21,7 @@ import {
   toRouteDropoffsFeatureCollection,
   toRouteLineFeature,
 } from '../lib/geo';
+import { fetchRoadRoute } from '@/lib/directions';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '';
 const MAP_STYLE = 'mapbox://styles/mapbox/dark-v11';
@@ -89,7 +90,9 @@ export default function FleetMap({ fleets, route, selectedId, onSelectFleet }: F
   }, [onSelectFleet]);
 
   const fleetFC = useMemo<FeatureCollection<Point>>(() => toFleetFeatureCollection(fleets), [fleets]);
-  const routeLine = useMemo<Feature<LineString>>(
+  // Path-aware base line: uses the route's road-snapped `path` when the optimizer
+  // attached one, else the straight origin→drop-off waypoints.
+  const baseLine = useMemo<Feature<LineString>>(
     () => (route ? toRouteLineFeature(route) : EMPTY_LINE),
     [route],
   );
@@ -97,6 +100,37 @@ export default function FleetMap({ fleets, route, selectedId, onSelectFleet }: F
     () => (route ? toRouteDropoffsFeatureCollection(route) : emptyPointFC()),
     [route],
   );
+
+  // Fallback road-snap (Mapbox Directions) for routes that arrive WITHOUT a server
+  // path (e.g. the seeded placeholder route). Cached against the route_id it was
+  // fetched for; a stale road for a different route is ignored automatically, so
+  // clearing the route needs no synchronous reset.
+  const [road, setRoad] = useState<{ routeId: string; line: Feature<LineString> } | null>(null);
+  const routeId = route?.route_id ?? '';
+  const hasServerPath = !!route?.path?.length;
+  const routeLine = !hasServerPath && road?.routeId === routeId ? road.line : baseLine;
+
+  // Only fetch when the route changes AND it has no server path — not on every
+  // 4s poll (the fleet/active object identity changes each tick, route_id doesn't).
+  useEffect(() => {
+    if (!route || hasServerPath || !MAPBOX_TOKEN) return;
+    const controller = new AbortController();
+    const coords = route.waypoints.map((w) => [w.lng, w.lat] as [number, number]);
+    fetchRoadRoute(coords, MAPBOX_TOKEN, controller.signal).then((r) => {
+      if (r) {
+        setRoad({
+          routeId,
+          line: {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: r.coordinates },
+            properties: { route_id: routeId },
+          },
+        });
+      }
+    });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeId, hasServerPath]);
 
   // ── Setup sources/layers/listeners once per map instance, with full cleanup ──
   useEffect(() => {

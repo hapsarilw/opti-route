@@ -63,6 +63,32 @@ const REGIONS = [
   'Padang Bai',
 ] as const;
 
+/**
+ * Real on-land centroids (south/east Bali) for each delivery region. Destinations
+ * are jittered within a couple of km of these, so a manifest's coordinate sits on
+ * land AND matches its region label — instead of landing in the Badung Strait.
+ * Coastal towns are nudged slightly inland so the jitter stays off the water.
+ */
+const REGION_CENTROIDS: Record<(typeof REGIONS)[number], Coordinate> = {
+  'Denpasar Utara': { lat: -8.6300, lng: 115.2120 },
+  'Denpasar Selatan': { lat: -8.7000, lng: 115.2250 },
+  'Denpasar Timur': { lat: -8.6450, lng: 115.2430 },
+  Kuta: { lat: -8.7180, lng: 115.1760 },
+  Seminyak: { lat: -8.6905, lng: 115.1700 },
+  Ubud: { lat: -8.5190, lng: 115.2630 },
+  Sanur: { lat: -8.6850, lng: 115.2520 },
+  Gianyar: { lat: -8.5435, lng: 115.3250 },
+  Jimbaran: { lat: -8.7850, lng: 115.1670 },
+  Canggu: { lat: -8.6500, lng: 115.1420 },
+  'Nusa Dua': { lat: -8.7950, lng: 115.2270 },
+  Benoa: { lat: -8.7450, lng: 115.2080 },
+  Klungkung: { lat: -8.5380, lng: 115.4020 },
+  'Padang Bai': { lat: -8.5320, lng: 115.5040 },
+};
+
+/** Region centroids as a flat list, for placing live-map vehicles on land too. */
+export const LAND_CENTROIDS: Coordinate[] = Object.values(REGION_CENTROIDS);
+
 const BIZ_PREFIX = ['PT', 'CV', 'UD', 'Toko', 'Hotel', 'Warung', 'Koperasi', 'RS', 'Apotek', 'Restoran'] as const;
 const BIZ_CORE = [
   'Bali Fresh',
@@ -190,7 +216,8 @@ function generateManifests(): Manifest[] {
       recipient_name: recipientName(),
       address: `${pick(STREETS)} No. ${int(1, 220)}, ${region}`,
       region,
-      destination: coordNear(WAREHOUSE_ORIGIN, 30),
+      destination: coordNear(REGION_CENTROIDS[region], 1.8), // on land, near the region
+
       priority: pickPriority(),
       weight_kg: int(50, 5000),
       status: pickStatus(), // mixed for demo; real flow starts QUEUED (Doc 01 §3)
@@ -254,6 +281,7 @@ function generateDrivers(): Driver[] {
     name: driverName(),
     phone: `+62 8${int(10, 89)}-${int(1000, 9999)}-${int(1000, 9999)}`,
     status: pickDriverStatus(),
+    vehicle_type: pick(VEHICLE_TYPES), // license class — gates which fleet they can take
     current_fleet_id: null,
     location: coordNear(WAREHOUSE_ORIGIN, 20),
   }));
@@ -287,7 +315,16 @@ export const db = {
 } as const;
 
 /**
- * Route → manifest IDs map (populated by the optimize handler, consumed by
- * the dispatch handler to update MANIFESTS in-memory so refetches stay fresh).
+ * Route → manifest IDs map, consumed by the dispatch handler to update MANIFESTS
+ * in-memory so refetches stay fresh.
+ *
+ * Optimize now runs in a real server-side route handler, so it cannot reach this
+ * browser-side map directly. Instead the client registers the mapping via
+ * `recordRouteManifests` once a route is optimized (see useOptimizeRoute).
  */
 export const routeManifestMap = new Map<string, string[]>();
+
+/** Register a freshly-optimized route's manifest IDs for the dispatch handler. */
+export function recordRouteManifests(routeId: string, manifestIds: string[]): void {
+  if (routeId) routeManifestMap.set(routeId, manifestIds);
+}

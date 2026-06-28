@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo, memo } from 'react';
+import { useRef, useMemo, memo, Fragment } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -80,8 +80,8 @@ function SortIcon({ sorted }: { sorted: false | 'asc' | 'desc' }) {
 
 function buildColumns(
   selectedSet: Set<string>,
-  toggleOne: (id: string) => void,
-  togglePage: (ids: string[], all: boolean) => void,
+  toggleOne: (manifest: Manifest) => void,
+  togglePage: (manifests: Manifest[], all: boolean) => void,
 ) {
   return [
     col.display({
@@ -89,23 +89,23 @@ function buildColumns(
       size: 38,
       enableSorting: false,
       header: ({ table }) => {
-        const ids = table.getRowModel().rows.map((r) => r.original.manifest_id);
+        const rowManifests = table.getRowModel().rows.map((r) => r.original);
+        const ids = rowManifests.map((m) => m.manifest_id);
         const allSel = ids.length > 0 && ids.every((id) => selectedSet.has(id));
         const someSel = !allSel && ids.some((id) => selectedSet.has(id));
         return (
           <th className="sticky left-0 z-20 w-9 bg-surface-1 px-3 py-2">
-            <span onClick={() => togglePage(ids, !allSel)} className="block cursor-pointer">
+            <span onClick={() => togglePage(rowManifests, !allSel)} className="block cursor-pointer">
               <Checkbox checked={allSel} indeterminate={someSel} className="mx-auto" />
             </span>
           </th>
         );
       },
       cell: ({ row }) => {
-        const id = row.original.manifest_id;
-        const checked = selectedSet.has(id);
+        const checked = selectedSet.has(row.original.manifest_id);
         return (
           <td
-            onClick={() => toggleOne(id)}
+            onClick={() => toggleOne(row.original)}
             className={cn('sticky left-0 z-10 cursor-pointer px-3 py-0', checked ? 'bg-surface-3' : 'bg-surface-1')}
           >
             <Checkbox checked={checked} className="mx-auto" />
@@ -136,7 +136,7 @@ function buildColumns(
               'whitespace-nowrap font-mono text-[11.5px] font-semibold',
               checked ? 'bg-surface-3 text-accent-bright' : 'bg-surface-1 text-text-secondary',
             )}
-            onClick={() => toggleOne(id)}
+            onClick={() => toggleOne(row.original)}
           >
             {id}
           </td>
@@ -233,7 +233,11 @@ const GridRow = memo(
           selected && 'bg-accent/[0.07]',
         )}
       >
-        {row.getVisibleCells().map((cell) => flexRender(cell.column.columnDef.cell, cell.getContext()))}
+        {row.getVisibleCells().map((cell) => (
+          <Fragment key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </Fragment>
+        ))}
       </tr>
     );
   },
@@ -270,7 +274,7 @@ export function ManifestDataGrid({
   const { selectedIds, toggle, setMany } = useSelectionStore();
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  const togglePage = (ids: string[], select: boolean) => setMany(ids, select);
+  const togglePage = (manifests: Manifest[], select: boolean) => setMany(manifests, select);
 
   const columns = useMemo(
     () => buildColumns(selectedSet, toggle, togglePage),
@@ -341,9 +345,11 @@ export function ManifestDataGrid({
           {/* ── Header (sticky top) ── */}
           <thead className="sticky top-0 z-15">
             <tr className="border-b border-border bg-surface-1">
-              {table.getHeaderGroups()[0].headers.map((header) =>
-                flexRender(header.column.columnDef.header, header.getContext()),
-              )}
+              {table.getHeaderGroups()[0].headers.map((header) => (
+                <Fragment key={header.id}>
+                  {flexRender(header.column.columnDef.header, header.getContext())}
+                </Fragment>
+              ))}
             </tr>
           </thead>
 

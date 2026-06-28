@@ -37,6 +37,16 @@ function fleetLabel(f: Fleet): string {
 }
 
 /**
+ * Smallest-capacity idle fleet that can still carry `requiredKg` (tightest fit).
+ * Returns `undefined` when no available vehicle is large enough.
+ */
+function recommendFleet(fleets: Fleet[], requiredKg: number): Fleet | undefined {
+  return fleets
+    .filter((f) => f.capacity_kg >= requiredKg)
+    .sort((a, b) => a.capacity_kg - b.capacity_kg)[0];
+}
+
+/**
  * OptimizeDrawer — Process 2 (Doc 02 §2). Slides in from the right (~330px) when
  * the dispatcher optimizes a selection. The 4 visual states (idle / loading /
  * result / error) are derived directly from the optimize mutation's lifecycle.
@@ -70,6 +80,15 @@ export function OptimizeDrawer({ open, onClose, selectedManifests, onAssignDrive
   const selectedFleet = fleets.find((f) => f.fleet_id === fleetId);
   const overCapacity = !!selectedFleet && totalWeight > selectedFleet.capacity_kg;
 
+  // Best-fit idle vehicle for this load: the smallest-capacity fleet that can
+  // still carry it (tightest fit — don't tie up a big truck for a small load).
+  const recommendedFleet = useMemo(
+    () => recommendFleet(fleets, totalWeight),
+    [fleets, totalWeight],
+  );
+  const showRecommendation =
+    overCapacity && !!recommendedFleet && recommendedFleet.fleet_id !== fleetId;
+
   const result = mutation.data?.res;
   const timeline = useMemo(
     () => (result ? buildTimeline(result.optimized_sequence, result.waypoints, manifestById) : []),
@@ -88,7 +107,7 @@ export function OptimizeDrawer({ open, onClose, selectedManifests, onAssignDrive
   const errorCode = mutation.error instanceof OptimizeError ? mutation.error.code : undefined;
 
   const handleOptimize = () => {
-    if (!fleetId || stopCount === 0) return;
+    if (!fleetId || stopCount === 0 || overCapacity) return;
     const payload: OptimizeRequest = {
       dispatcher_id: user.user_id,
       fleet_id: fleetId,
@@ -254,12 +273,46 @@ export function OptimizeDrawer({ open, onClose, selectedManifests, onAssignDrive
                     value={fleetId}
                     onChange={setPickedFleetId}
                     selected={selectedFleet}
+                    requiredKg={totalWeight}
                   />
                 )}
                 {overCapacity && phase !== 'loading' && (
                   <p className="mt-2 font-mono text-[10px] text-[#F87171]">
-                    ⚠ Load {formatWeight(totalWeight)} exceeds capacity {formatWeight(selectedFleet!.capacity_kg)}.
+                    ⚠ Load {formatWeight(totalWeight)} exceeds capacity {formatWeight(selectedFleet!.capacity_kg)}
+                    {' '}(over by {formatWeight(totalWeight - selectedFleet!.capacity_kg)}). Select a higher-capacity vehicle.
                   </p>
+                )}
+
+                {/* Recommended fleet — best-fit vehicle from the available idle list */}
+                {showRecommendation ? (
+                  <button
+                    type="button"
+                    onClick={() => setPickedFleetId(recommendedFleet!.fleet_id)}
+                    className="mt-2 flex w-full items-center gap-2.5 rounded-[9px] border border-accent/35 bg-accent/10 px-3 py-2 text-left transition-colors hover:bg-accent/15"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-bright" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-[9px] font-bold uppercase tracking-wide text-accent-bright">
+                        Recommended fleet
+                      </div>
+                      <div className="truncate text-[11.5px] font-semibold text-text-secondary">
+                        {fleetLabel(recommendedFleet!)}
+                        <span className="ml-1 font-mono text-[10px] font-normal text-text-muted">
+                          · {formatWeight(recommendedFleet!.capacity_kg)}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded-md bg-accent px-2 py-1 text-[10px] font-bold text-white">
+                      Use
+                    </span>
+                  </button>
+                ) : (
+                  overCapacity &&
+                  phase !== 'loading' && (
+                    <p className="mt-2 font-mono text-[10px] text-text-muted">
+                      No idle vehicle can carry {formatWeight(totalWeight)}. Reduce the selection or free up a larger fleet.
+                    </p>
+                  )
                 )}
               </div>
 
@@ -300,6 +353,7 @@ export function OptimizeDrawer({ open, onClose, selectedManifests, onAssignDrive
                     onAssignDriver?.({
                       routeId: result.route_id,
                       fleetId,
+                      fleetVehicleType: selectedFleet.vehicle_type,
                       stopCount: result.optimized_sequence.length,
                       etaMins: result.estimated_total_duration_mins,
                       vehicleLabel: fleetLabel(selectedFleet),
@@ -338,12 +392,19 @@ export function OptimizeDrawer({ open, onClose, selectedManifests, onAssignDrive
                 size="lg"
                 className="w-full"
                 onClick={handleOptimize}
-                disabled={!fleetId || stopCount === 0}
+                disabled={!fleetId || stopCount === 0 || overCapacity}
               >
                 <Sparkles className="h-3.5 w-3.5" /> Optimize Route
               </Button>
-              <div className="mt-2 text-center font-mono text-[10px] text-text-muted">
-                Model: OptiRoute-v2 · ~3–6 seconds
+              <div
+                className={cn(
+                  'mt-2 text-center font-mono text-[10px]',
+                  overCapacity ? 'text-[#F87171]' : 'text-text-muted',
+                )}
+              >
+                {overCapacity
+                  ? 'Vehicle over capacity · pick a larger fleet'
+                  : 'Model: OptiRoute-v2 · ~3–6 seconds'}
               </div>
             </>
           )}
@@ -360,12 +421,14 @@ function FleetSelector({
   value,
   onChange,
   selected,
+  requiredKg,
 }: {
   fleets: Fleet[];
   loading: boolean;
   value: string;
   onChange: (id: string) => void;
   selected?: Fleet;
+  requiredKg: number;
 }) {
   if (loading) {
     return (
@@ -407,11 +470,15 @@ function FleetSelector({
         onChange={(e) => onChange(e.target.value)}
         className="absolute inset-0 cursor-pointer opacity-0"
       >
-        {fleets.map((f) => (
-          <option key={f.fleet_id} value={f.fleet_id}>
-            {fleetLabel(f)} — {formatWeight(f.capacity_kg)}
-          </option>
-        ))}
+        {fleets.map((f) => {
+          const insufficient = f.capacity_kg < requiredKg;
+          return (
+            <option key={f.fleet_id} value={f.fleet_id}>
+              {fleetLabel(f)} — {formatWeight(f.capacity_kg)}
+              {insufficient ? ' ⚠ over capacity' : ''}
+            </option>
+          );
+        })}
       </select>
     </div>
   );

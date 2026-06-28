@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Clock, MapPin, Truck, X } from 'lucide-react';
-import type { Driver } from '@/types';
+import { AlertTriangle, Clock, MapPin, RotateCw, Truck, X } from 'lucide-react';
+import type { Driver, VehicleType } from '@/types';
 import { WAREHOUSE_ORIGIN } from '@/config/constants';
 import { haversineKm } from '@/lib/haversine';
 import { formatDuration } from '@/lib/format';
@@ -17,6 +17,7 @@ import { useDispatch } from '../hooks/useDispatch';
 export interface AssignDriverContext {
   routeId: string;
   fleetId: string;
+  fleetVehicleType: VehicleType; // gates which drivers (by license class) may be assigned
   stopCount: number;
   etaMins: number;
   vehicleLabel: string; // e.g. "Truck · DK 1234 AB"
@@ -37,20 +38,32 @@ function driverInitials(name: string): string {
     .toUpperCase();
 }
 
+/** "TRUCK" → "Truck" for the per-row license badge. */
+function titleCaseVehicle(t: VehicleType): string {
+  return t.charAt(0) + t.slice(1).toLowerCase();
+}
+
 /** Candidate driver enriched with Haversine distance from warehouse origin. */
 interface RankedDriver extends Driver {
   distKm: number;
 }
 
-function rankDrivers(drivers: Driver[]): RankedDriver[] {
+/** Available drivers licensed for `vehicleType`, nearest-first. */
+function rankDrivers(drivers: Driver[], vehicleType: VehicleType): RankedDriver[] {
   return drivers
-    .filter((d) => d.status === 'AVAILABLE' && d.location)
+    .filter((d) => d.status === 'AVAILABLE' && d.location && d.vehicle_type === vehicleType)
     .map((d) => ({ ...d, distKm: haversineKm(d.location!, WAREHOUSE_ORIGIN) }))
     .sort((a, b) => a.distKm - b.distKm);
 }
 
 export function AssignDriverModal({ open, onClose, ctx }: AssignDriverModalProps) {
-  const { data: rawDrivers = [], isLoading: driversLoading } = useAvailableDrivers();
+  const {
+    data: rawDrivers = [],
+    isLoading: driversLoading,
+    isError: driversError,
+    isFetching: driversFetching,
+    refetch: refetchDrivers,
+  } = useAvailableDrivers();
   const mutation = useDispatch();
 
   // Manual selection; empty string = "use nearest" (derived below)
@@ -58,7 +71,10 @@ export function AssignDriverModal({ open, onClose, ctx }: AssignDriverModalProps
   const [phase, setPhase] = useState<'select' | 'success'>('select');
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const candidates = useMemo(() => rankDrivers(rawDrivers), [rawDrivers]);
+  const candidates = useMemo(
+    () => rankDrivers(rawDrivers, ctx.fleetVehicleType),
+    [rawDrivers, ctx.fleetVehicleType],
+  );
 
   // Cleanup the auto-close timer when the component unmounts or closes.
   // The parent mounts/unmounts this component via `{assignCtx && <AssignDriverModal>}`,
@@ -146,19 +162,33 @@ export function AssignDriverModal({ open, onClose, ctx }: AssignDriverModalProps
         {/* ── Driver list ───────────────────────────────────────── */}
         <div className="flex items-center justify-between px-5 pb-1 pt-3.5">
           <span className="font-mono text-[10px] font-bold uppercase tracking-wide text-text-muted">
-            Available drivers · nearest ↓
+            {vehicleType} drivers · nearest ↓
           </span>
           <span className="font-mono text-[10.5px] text-text-muted">
-            {driversLoading ? '—' : candidates.length} available
+            {driversLoading || driversError ? '—' : candidates.length} available
           </span>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-3.5 pb-2.5 pt-1.5">
           {driversLoading ? (
             Array.from({ length: 4 }, (_, i) => <DriverRowSkeleton key={i} />)
+          ) : driversError ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-[#F87171]/25 bg-error/[0.07] p-5 text-center">
+              <AlertTriangle className="h-5 w-5 text-[#F87171]" />
+              <div className="space-y-1">
+                <div className="text-[12.5px] font-semibold text-text-primary">Couldn’t load drivers</div>
+                <div className="font-mono text-[10.5px] text-text-muted">
+                  The driver roster request failed. Check your connection and retry.
+                </div>
+              </div>
+              <Button variant="secondary" onClick={() => refetchDrivers()} loading={driversFetching}>
+                <RotateCw className="h-3.5 w-3.5" />
+                Retry
+              </Button>
+            </div>
           ) : candidates.length === 0 ? (
             <div className="rounded-xl border border-border bg-surface-0 p-4 text-center font-mono text-[11px] text-text-muted">
-              No available drivers found.
+              No available {vehicleType}-licensed drivers found.
             </div>
           ) : (
             candidates.map((d, i) => (
@@ -200,7 +230,7 @@ export function AssignDriverModal({ open, onClose, ctx }: AssignDriverModalProps
             <Button
               variant="primary"
               onClick={handleDispatch}
-              disabled={!effectiveId || driversLoading}
+              disabled={!effectiveId || driversLoading || driversError}
               loading={mutation.isPending}
             >
               Dispatch
@@ -298,6 +328,10 @@ function DriverRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-[13.5px] font-bold text-text-primary truncate">{driver.name}</span>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wide text-text-secondary">
+            <Truck className="h-2.5 w-2.5" />
+            {titleCaseVehicle(driver.vehicle_type)}
+          </span>
           {isNearest && (
             <span className="shrink-0 rounded bg-accent-bright px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-surface-0">
               Nearest

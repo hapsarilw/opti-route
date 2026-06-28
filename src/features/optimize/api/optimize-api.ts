@@ -25,6 +25,7 @@ export const optimizeResponseSchema = z.object({
   waypoints: z.array(coordinateSchema),
   estimated_total_duration_mins: z.number(),
   ai_insights: z.string(),
+  path: z.array(coordinateSchema).optional(),
 });
 
 /**
@@ -58,7 +59,16 @@ export async function postOptimize(payload: OptimizeRequest): Promise<OptimizeRe
   }
 
   if (!res.ok) {
-    throw new OptimizeError(`AI server responded with ${res.status}. Please try again.`, res.status);
+    // Prefer the server's own explanation (e.g. a 422 capacity violation) so the
+    // drawer shows the real reason rather than a generic status message.
+    let detail = `AI server responded with ${res.status}. Please try again.`;
+    try {
+      const body = (await res.json()) as Partial<OptimizeResponse>;
+      if (body?.ai_insights) detail = body.ai_insights;
+    } catch {
+      /* non-JSON body — keep the generic message */
+    }
+    throw new OptimizeError(detail, res.status);
   }
 
   // zod-validate the structured output before trusting it (SDD §14).

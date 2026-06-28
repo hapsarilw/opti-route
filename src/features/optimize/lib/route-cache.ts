@@ -64,6 +64,7 @@ export function buildRoute(res: OptimizeResponse, payload: OptimizeRequest): Rou
     origin_coordinate: payload.origin_coordinate,
     optimized_sequence: res.optimized_sequence,
     waypoints: res.waypoints,
+    path: res.path,
     estimated_total_duration_mins: res.estimated_total_duration_mins,
     ai_insights: res.ai_insights,
     status: 'DRAFT',

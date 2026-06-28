@@ -61,6 +61,10 @@ export interface OptimizeResponse {
   waypoints: Coordinate[];
   estimated_total_duration_mins: number;
   ai_insights: string;
+  /** Road-snapped polyline (Mapbox Directions) through the waypoints, when
+   *  available. Used to draw a drivable route line and to move the vehicle along
+   *  real roads; callers fall back to `waypoints` when absent. */
+  path?: Coordinate[];
 }
 
 /** POST /api/v1/dispatch (Doc 01 §5.3). */
@@ -116,6 +120,7 @@ export interface ActiveRoute {
   fleet_id: string;
   waypoints: Coordinate[]; // origin first, then drop-offs in sequence
   dropoffs: RouteDropoff[];
+  path?: Coordinate[]; // road-snapped polyline the vehicle follows (falls back to waypoints)
 }
 
 /** GET /api/v1/fleet/active — roster + active route for the live map. */

@@ -53,6 +53,7 @@ export function ManifestsView() {
   const [assignCtx, setAssignCtx] = useState<AssignDriverContext | null>(null);
 
   const selectedIds = useSelectionStore((s) => s.selectedIds);
+  const selectedManifests = useSelectionStore((s) => s.selectedManifests);
 
   const query = useMemo(
     () => ({
@@ -77,12 +78,6 @@ export function ManifestsView() {
 
   const hasFilters = !!(filters.q || filters.region || filters.priority || filters.status);
 
-  // Resolve selected ids → full Manifest objects for the optimize drawer.
-  // Depends on stable `data` (not the per-render `manifests` alias).
-  const selectedManifests = useMemo(() => {
-    const set = new Set(selectedIds);
-    return (data?.data ?? []).filter((m) => set.has(m.manifest_id));
-  }, [data, selectedIds]);
 
   const handleOptimize = () => {
     if (selectedIds.length > 0) setDrawerOpen(true);

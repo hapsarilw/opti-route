@@ -32,11 +32,13 @@ export function toFleetFeatureCollection(fleets: MonitoredFleet[]): FeatureColle
   };
 }
 
-/** Active route → a single LineString feature for the polyline layer. */
+/** Active route → a single LineString feature for the polyline layer. Uses the
+ *  road-snapped `path` when present, else the straight origin→drop-off waypoints. */
 export function toRouteLineFeature(route: ActiveRoute): Feature<LineString> {
+  const line = route.path && route.path.length > 1 ? route.path : route.waypoints;
   return {
     type: 'Feature',
-    geometry: { type: 'LineString', coordinates: route.waypoints.map((w) => [w.lng, w.lat]) },
+    geometry: { type: 'LineString', coordinates: line.map((c) => [c.lng, c.lat]) },
     properties: { route_id: route.route_id },
   };
 }
