@@ -18,6 +18,10 @@
   --border: #1e3028;
   --border-subtle: rgba(255, 255, 255, 0.06);
 
+  /* data-grid rows (zebra + hover) — subtle lifts off surface-1 */
+  --row-alt: #16241d;
+  --row-hover: #1f3128;
+
   /* text */
   --text-primary: #f0ede6;
   --text-secondary: #8fa39a;
@@ -45,6 +49,9 @@
   --border: #ddd5c8;
   --border-subtle: #ede7db;
 
+  --row-alt: #faf8f3;
+  --row-hover: #f1ece2;
+
   --text-primary: #23201b;
   --text-secondary: #6f665a;
   --text-muted: #a99f8e;
@@ -63,6 +70,10 @@
   /* borders */
   --color-border: var(--border);
   --color-border-subtle: var(--border-subtle);
+
+  /* data-grid rows */
+  --color-row-alt: var(--row-alt);
+  --color-row-hover: var(--row-hover);
 
   /* text */
   --color-text-primary: var(--text-primary);

@@ -8,6 +8,7 @@ import { WAREHOUSE_ORIGIN } from '@/config/constants';
 import { PriorityChip } from '@/components/shared/PriorityChip';
 import { Button } from '@/components/ui/Button';
 import { Alert } from '@/components/ui/Alert';
+import { Dropdown, type DropdownGroup } from '@/components/ui/Dropdown';
 import { formatWeight } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { AssignDriverContext } from '@/features/dispatch';
@@ -445,42 +446,58 @@ function FleetSelector({
       </div>
     );
   }
+  const VEHICLE_ORDER = ['TRUCK', 'VAN', 'MOTORCYCLE'] as const;
+
+  const groups: DropdownGroup[] = VEHICLE_ORDER
+    .map((type) => ({
+      label: type.charAt(0) + type.slice(1).toLowerCase(),
+      options: fleets
+        .filter((f) => f.vehicle_type === type)
+        .sort((a, b) => a.capacity_kg - b.capacity_kg)
+        .map((f) => ({
+          value: f.fleet_id,
+          label: f.plate_number,
+          hint: formatWeight(f.capacity_kg),
+          warning: f.capacity_kg < requiredKg ? 'over capacity' : undefined,
+        })),
+    }))
+    .filter((g) => g.options.length > 0);
+
   return (
-    <div className="relative flex items-center justify-between rounded-[9px] border border-border bg-surface-0 px-3 py-2.5 hover:bg-surface-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent font-display text-[10px] font-bold text-white">
-          {selected ? fleetInitials(selected) : '—'}
-        </span>
-        <div className="min-w-0">
-          <div className="truncate text-xs font-semibold text-text-secondary">
-            {selected ? fleetLabel(selected) : 'Select a vehicle'}
+    <Dropdown
+      aria-label="Select fleet"
+      groups={groups}
+      value={value}
+      onChange={onChange}
+      renderTrigger={({ open }) => (
+        <div
+          className={cn(
+            'flex items-center justify-between rounded-[9px] border bg-surface-0 px-3 py-2.5 transition-colors',
+            open ? 'border-accent/50 bg-surface-2' : 'border-border hover:bg-surface-2',
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent font-display text-[10px] font-bold text-white">
+              {selected ? fleetInitials(selected) : '—'}
+            </span>
+            <div className="min-w-0 text-left">
+              <div className="truncate text-xs font-semibold text-text-secondary">
+                {selected ? fleetLabel(selected) : 'Select a vehicle'}
+              </div>
+              <div className="font-mono text-[10.5px] text-text-muted">
+                {selected ? `Capacity ${formatWeight(selected.capacity_kg)}` : ''}
+              </div>
+            </div>
           </div>
-          <div className="font-mono text-[10.5px] text-text-muted">
-            {selected ? `Capacity ${formatWeight(selected.capacity_kg)}` : ''}
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#4ADE80]" />
+            <ChevronDown
+              className={cn('h-3.5 w-3.5 text-text-muted transition-transform', open && 'rotate-180')}
+            />
           </div>
         </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#4ADE80]" />
-        <ChevronDown className="h-3.5 w-3.5 text-text-muted" />
-      </div>
-      <select
-        aria-label="Select fleet"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 cursor-pointer opacity-0"
-      >
-        {fleets.map((f) => {
-          const insufficient = f.capacity_kg < requiredKg;
-          return (
-            <option key={f.fleet_id} value={f.fleet_id}>
-              {fleetLabel(f)} — {formatWeight(f.capacity_kg)}
-              {insufficient ? ' ⚠ over capacity' : ''}
-            </option>
-          );
-        })}
-      </select>
-    </div>
+      )}
+    />
   );
 }
 

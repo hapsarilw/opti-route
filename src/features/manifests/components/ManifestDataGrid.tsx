@@ -29,6 +29,18 @@ const PRIORITY_RANK: Record<Priority, number> = { HIGH: 0, NORMAL: 1, LOW: 2 };
 
 const col = createColumnHelper<Manifest>();
 
+// Background for the two sticky columns (checkbox + MNF-ID). They need an opaque
+// fill so body cells can't bleed through while scrolling — so they can't inherit
+// the <tr> zebra/hover. We mirror it here: alternating tint by row parity, the
+// shared hover via group-hover, and the selected fill.
+function stickyCellBg(checked: boolean, index: number) {
+  if (checked) return 'bg-surface-3';
+  return cn(
+    index % 2 === 1 ? 'bg-row-alt' : 'bg-surface-1',
+    'group-hover:bg-row-hover',
+  );
+}
+
 // ── Skeleton loading rows ──────────────────────────────────────────────────
 const SKEL_WIDTHS = [
   ['64px', '160px', '90px', '38px', '38px', '68px'],
@@ -94,7 +106,7 @@ function buildColumns(
         const allSel = ids.length > 0 && ids.every((id) => selectedSet.has(id));
         const someSel = !allSel && ids.some((id) => selectedSet.has(id));
         return (
-          <th className="sticky left-0 z-20 w-9 bg-surface-1 px-3 py-2">
+          <th className="sticky left-0 z-20 w-9 bg-surface-2 px-3 py-2">
             <span onClick={() => togglePage(rowManifests, !allSel)} className="block cursor-pointer">
               <Checkbox checked={allSel} indeterminate={someSel} className="mx-auto" />
             </span>
@@ -106,7 +118,10 @@ function buildColumns(
         return (
           <td
             onClick={() => toggleOne(row.original)}
-            className={cn('sticky left-0 z-10 cursor-pointer px-3 py-0', checked ? 'bg-surface-3' : 'bg-surface-1')}
+            className={cn(
+              'sticky left-0 z-10 cursor-pointer px-3 py-0 transition-colors',
+              stickyCellBg(checked, row.index),
+            )}
           >
             <Checkbox checked={checked} className="mx-auto" />
           </td>
@@ -118,7 +133,7 @@ function buildColumns(
       size: 130,
       header: (ctx) => (
         <th
-          className="sticky left-9 z-20 cursor-pointer select-none bg-surface-1 px-3 py-2 text-left"
+          className="sticky left-9 z-20 cursor-pointer select-none bg-surface-2 px-3 py-2 text-left"
           onClick={ctx.column.getToggleSortingHandler()}
         >
           <span className="flex items-center gap-1 font-mono text-[9.5px] font-bold uppercase tracking-wider text-text-muted">
@@ -132,9 +147,10 @@ function buildColumns(
         return (
           <td
             className={cn(
-              'sticky left-9 z-10 cursor-pointer border-r border-border-subtle px-3 py-0',
+              'sticky left-9 z-10 cursor-pointer border-r border-border-subtle px-3 py-0 transition-colors',
               'whitespace-nowrap font-mono text-[11.5px] font-semibold',
-              checked ? 'bg-surface-3 text-accent-bright' : 'bg-surface-1 text-text-secondary',
+              stickyCellBg(checked, row.index),
+              checked ? 'text-accent-bright' : 'text-text-secondary',
             )}
             onClick={() => toggleOne(row.original)}
           >
@@ -229,8 +245,10 @@ const GridRow = memo(
       <tr
         style={{ height: ROW_HEIGHT }}
         className={cn(
-          'border-t border-border-subtle transition-colors hover:bg-surface-2/40',
-          selected && 'bg-accent/[0.07]',
+          'group border-t border-border-subtle transition-colors',
+          selected
+            ? 'bg-accent/10'
+            : cn(row.index % 2 === 1 ? 'bg-row-alt' : 'bg-surface-1', 'hover:bg-row-hover'),
         )}
       >
         {row.getVisibleCells().map((cell) => (
@@ -344,7 +362,7 @@ export function ManifestDataGrid({
         <table className="w-full min-w-205 border-collapse">
           {/* ── Header (sticky top) ── */}
           <thead className="sticky top-0 z-15">
-            <tr className="border-b border-border bg-surface-1">
+            <tr className="border-b border-border bg-surface-2">
               {table.getHeaderGroups()[0].headers.map((header) => (
                 <Fragment key={header.id}>
                   {flexRender(header.column.columnDef.header, header.getContext())}
