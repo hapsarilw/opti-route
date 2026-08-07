@@ -14,9 +14,9 @@ export interface NavItem {
 /** Primary workspace nav — maps 1:1 to the 4 business processes (P1–P4). */
 export const WORKSPACE_NAV: NavItem[] = [
   { id: 'manifests', label: 'Manifests', href: '/manifests', icon: LayoutGrid },
-  { id: 'optimize', label: 'Optimize', href: '/optimize', icon: Zap, requires: 'route:optimize' },
+  // { id: 'optimize', label: 'Optimize', href: '/optimize', icon: Zap, requires: 'route:optimize' },
   { id: 'map', label: 'Live Map', href: '/map', icon: Map },
-  { id: 'dispatch', label: 'Dispatch', href: '/dispatch', icon: Send, requires: 'route:dispatch' },
+  // { id: 'dispatch', label: 'Dispatch', href: '/dispatch', icon: Send, requires: 'route:dispatch' },
 ];
 
 /** System nav — RBAC-gated settings. */
